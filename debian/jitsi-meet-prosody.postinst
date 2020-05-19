@@ -1,41 +1,31 @@
-#!/bin/bash
+#!/bin/sh
 # postinst script for jitsi-meet-prosody
-#
-# see: dh_installdeb(1)
 
 set -e
 
-# summary of how this script can be called:
-#        * <postinst> `configure' <most-recently-configured-version>
-#        * <old-postinst> `abort-upgrade' <new version>
-#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
-#          <new-version>
-#        * <postinst> `abort-remove'
-#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
-#          <failed-install-package> <version> `removing'
-#          <conflicting-package> <version>
-# for details, see http://www.debian.org/doc/debian-policy/ or
-# the debian-policy package
-
-function generateRandomPassword() {
-    cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16
+generateRandomPassword() {
+    cat /dev/urandom \
+        | tr -dc 'a-zA-Z0-9' | head -c 16
 }
 
-case "$1" in
-    configure)
+_configure_manual() {
+    echo "no configuration will be made"
+    echo "you need to create all your configuration by yourself"
+}
 
-        # loading debconf
-        . /usr/share/debconf/confmodule
+_configure_auto() {
+    # loading debconf
+    . /usr/share/debconf/confmodule
 
-        # try to get host from jitsi-videobridge
-        db_get jitsi-videobridge/jvb-hostname
-        if [ -z "$RET" ] ; then
-            # server hostname
-            db_set jitsi-videobridge/jvb-hostname "localhost"
-            db_input critical jitsi-videobridge/jvb-hostname || true
-            db_go
-        fi
-        JVB_HOSTNAME="$RET"
+    # try to get host from jitsi-videobridge
+    db_get jitsi-videobridge/jvb-hostname
+    if [ -z "$RET" ] ; then
+        # server hostname
+        db_set jitsi-videobridge/jvb-hostname "localhost"
+        db_input critical jitsi-videobridge/jvb-hostname || true
+        db_go
+    fi
+    JVB_HOSTNAME="$RET"
 
         db_get jitsi-videobridge/jvbsecret
         if [ -z "$RET" ] ; then
@@ -206,15 +196,32 @@ case "$1" in
         if [ "$PROSODY_CONFIG_PRESENT" = "false" ]; then
             invoke-rc.d prosody restart || true
         fi
-    ;;
+}
 
-    abort-upgrade|abort-remove|abort-deconfigure)
-    ;;
+######################################################################
+# here the configure function used to switch the configuration mode.
+# if the variable POSTINSTALL_MODE is set to auto, it will execute
+# the native jitsi script in other case, no configuration will
+# be made.
+######################################################################
+_configure() {
+    case "${POSTINSTALL_MODE}"
+    in
+        auto) _configure_auto;;
+        *) _configure_manual;;
+    esac
+        
+}
 
-    *)
-        echo "postinst called with unknown argument \`$1'" >&2
-        exit 1
-    ;;
+_wildcard() {
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+}
+
+case "$1" in
+    configure) _configure;;
+    abort-upgrade|abort-remove|abort-deconfigure) ;;
+    *);;
 esac
 
 # dh_installdeb will replace this with shell code automatically

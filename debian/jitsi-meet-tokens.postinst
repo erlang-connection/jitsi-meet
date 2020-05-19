@@ -1,26 +1,14 @@
-#!/bin/bash
+#!/bin/sh
 # postinst script for jitsi-meet-tokens
-#
-# see: dh_installdeb(1)
 
 set -e
 
-# summary of how this script can be called:
-#        * <postinst> `configure' <most-recently-configured-version>
-#        * <old-postinst> `abort-upgrade' <new version>
-#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
-#          <new-version>
-#        * <postinst> `abort-remove'
-#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
-#          <failed-install-package> <version> `removing'
-#          <conflicting-package> <version>
-# for details, see http://www.debian.org/doc/debian-policy/ or
-# the debian-policy package
+_configure_manual() {
+    echo "no configuration will be made"
+    echo "you need to create all your configuration by yourself"
+}
 
-
-case "$1" in
-    configure)
-
+_configure_auto() {
         # loading debconf
         . /usr/share/debconf/confmodule
 
@@ -87,16 +75,31 @@ case "$1" in
         else
             echo "Prosody config not found at $PROSODY_HOST_CONFIG - unable to auto-configure token authentication"
         fi
+}
 
-    ;;
+######################################################################
+# here the configure function used to switch the configuration mode.
+# if the variable POSTINSTALL_MODE is set to auto, it will execute
+# the native jitsi script in other case, no configuration will
+# be made.
+######################################################################
+_configure() {
+    case "${POSTINSTALL_MODE}"
+    in
+        auto) _configure_auto;;
+        *) _configure_manual;;
+    esac
+}
 
-    abort-upgrade|abort-remove|abort-deconfigure)
-    ;;
+_wildcard() {
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+}
 
-    *)
-        echo "postinst called with unknown argument \`$1'" >&2
-        exit 1
-    ;;
+case "$1" in
+    configure) _configure;;
+    abort-upgrade|abort-remove|abort-deconfigure);;
+    *) _wildcard;;
 esac
 
 # dh_installdeb will replace this with shell code automatically

@@ -1,0 +1,64 @@
+stages:
+  - build
+  - build:test
+  - packaging
+  - packaging:test
+  - packaging:upload
+
+build:
+  stage: build
+  image: node:latest
+  script:
+    - npm install
+    - npm run lint
+    - make
+
+package:debian:build:
+  stage: packaging
+  image: debian:10
+  artifacts:
+    expire_in: 1 week
+    paths:
+    - "*.deb"
+  script:
+    - apt-get update
+    - apt-get install -y build-essential
+    - apt-get install -y debhelper openssl nginx
+    - apt-get install -y nodejs npm git
+    - npm update
+    - npm install
+    - npm run lint
+    - make
+    - dpkg-buildpackage --pre-clean -A -us -ui -uc
+    - "cp ../*.deb ."
+
+package:debian:test:
+  stage: packaging:test
+  image: debian:10
+  dependencies:
+    - package:debian:build
+  script:
+    - "ls *.deb"
+    - "apt-get update"
+    - "apt-get install -y ./*.deb"
+    - "dpkg -L jitsi-meet-prosody | sort"
+    - "dpkg -L jitsi-meet-tokens | sort"
+    - "dpkg -L jitsi-meet-turnserver | sort"
+    - "dpkg -L jitsi-meet-web-config | sort"
+    - "dpkg -L jitsi-meet-web | sort"
+
+package:debian:upload:
+  stage: packaging:upload
+  image: debian:10
+  dependencies:
+    - package:debian:build
+    - package:debian:test
+  script:
+    - "apt-get update"
+    - "apt-get install -y curl"
+    - "cat jitsi-meet-prosody*.deb | curl -u ${APT_USER}:${APT_PASSWORD} -H 'Content-Type: multipart/form-data' --data-binary '@-' ${APT_REPOSITORY}"
+    - "cat jitsi-meet-tokens*.deb | curl -u ${APT_USER}:${APT_PASSWORD} -H 'Content-Type: multipart/form-data' --data-binary '@-' ${APT_REPOSITORY}"
+    - "cat jitsi-meet-turnserver*.deb | curl -u ${APT_USER}:${APT_PASSWORD} -H 'Content-Type: multipart/form-data' --data-binary '@-' ${APT_REPOSITORY}"
+    - "cat jitsi-meet-web-config*.deb | curl -u ${APT_USER}:${APT_PASSWORD} -H 'Content-Type: multipart/form-data' --data-binary '@-' ${APT_REPOSITORY}"
+    - "cat jitsi-meet-web*.deb | grep -v config | curl -u ${APT_USER}:${APT_PASSWORD} -H 'Content-Type: multipart/form-data' --data-binary '@-' ${APT_REPOSITORY}"
+
